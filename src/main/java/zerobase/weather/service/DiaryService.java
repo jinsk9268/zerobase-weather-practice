@@ -118,4 +118,8 @@ public class DiaryService {
         nowDiary.setText(text);
         diaryRepository.save(nowDiary); // 기존꺼 업데이트
     }
+
+    public void deleteDiary(LocalDate date) {
+        diaryRepository.deleteAllByDate(date);
+    }
 }
