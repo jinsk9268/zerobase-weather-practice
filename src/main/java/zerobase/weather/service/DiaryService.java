@@ -41,10 +41,10 @@ public class DiaryService {
     @Transactional
     @Scheduled(cron = "0 0 1 * * *")
     public void saveWeatherDate() {
-        dateWeatherRepository.save(getWeatherFromApi());
+        dateWeatherRepository.save(getWeatherFromApi(LocalDate.now()));
     }
 
-    private DateWeather getWeatherFromApi() {
+    private DateWeather getWeatherFromApi(LocalDate date) {
         // openweathermap에서 날씨 데이터 가져오기
         String weatherData = getWeatherString();
 
@@ -52,7 +52,7 @@ public class DiaryService {
         Map<String, Object> parsedWeather = parseWeather(weatherData);
 
         DateWeather dateWeather = new DateWeather();
-        dateWeather.setDate(LocalDate.now());
+        dateWeather.setDate(date);
         dateWeather.setWeather(parsedWeather.get("main").toString());
         dateWeather.setIcon(parsedWeather.get("icon").toString());
         dateWeather.setTemperature((double)parsedWeather.get("temp"));
@@ -62,20 +62,25 @@ public class DiaryService {
 
     @Transactional(isolation = Isolation.SERIALIZABLE)
     public void createDiary(LocalDate date, String text) {
-        // openweathermap에서 날씨 데이터 가져오기
-        String weatherData = getWeatherString();
-
-        // 받아온 날씨 json 파싱하기
-        Map<String, Object> parsedWeather = parseWeather(weatherData);
+        // 날씨 데이터 가져오기 (DB에서 가져오기, 없으면 API 요청)
+        DateWeather dateWeather = getDateWeather(date);
 
         // 파싱된 데이터 + 일기 값 db에 insert
         Diary nowDiary = new Diary();
-        nowDiary.setWeather(parsedWeather.get("main").toString());
-        nowDiary.setIcon(parsedWeather.get("icon").toString());
-        nowDiary.setTemperature((Double)parsedWeather.get("temp"));
+        nowDiary.setDateWeather(dateWeather);
         nowDiary.setText(text);
-        nowDiary.setDate(date);
         diaryRepository.save(nowDiary);
+    }
+
+    private DateWeather getDateWeather(LocalDate date) {
+        List<DateWeather> dateWeatherFromDB = dateWeatherRepository.findAllByDate(date);
+
+        if (dateWeatherFromDB.isEmpty()) {
+            // 현재 날씨를 openweathermap에서 가져온다
+            return getWeatherFromApi(date);
+        } else {
+            return dateWeatherFromDB.get(0);
+        }
     }
 
     private String getWeatherString() {
